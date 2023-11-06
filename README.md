@@ -1,4 +1,4 @@
-# Contribution for the Italian Metabolomics Network General Meeting 2023
+# Contribution to the Italian Metabolomics Network General Meeting 2023
 
 This repository contains the code and presentation of my contribution to
 the [Italian Metabolomics Network General Meeting
