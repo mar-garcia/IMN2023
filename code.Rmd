@@ -9,9 +9,10 @@ output:
 ---
 
 ```{r start, include = FALSE}
-xxp <- "NEG"
+xxp <- "POS"
 xxc <- "PA"
-xxa <- "[M-H]-"
+xxa <- "[M+NH4]+"
+class_order <- c("FA", "LPA", "PA", "LPC", "PC", "LPE", "PE", "MGDG", "DGDG")
 
 startpoint <- Sys.time()
 ```
@@ -40,36 +41,21 @@ library(DT)
 fml_maker <- function(class, C, db){
   case_when(
     # 1 FA chain -----------------------------------------------------------
-    #class == "FA" ~ paste0("C", C, "H", C*2 - (2*db), "O2"),
-    #class == "CAR" ~ paste0("C", C + 7, "H", C*2 - (2*db) + 13, "NO4"),
-    #class == "LPA" ~ paste0("C", C + 3, "H", C*2 - (2*db) + 7, "O7P"),
-    #class == "LPC" ~ paste0("C", C + 8, "H", C*2 - (2*db) + 18, "NO7P"),
-    #class == "LPE" ~ paste0("C", C + 5, "H", C*2 - (2*db) + 12, "NO7P"),
-    #class == "LPG" ~ paste0("C", C + 6, "H", C*2 - (2*db) + 13, "O9P"),
-    #class == "LPI" ~ paste0("C", C + 9, "H", C*2 - (2*db) + 17, "O12P"),
-    #class == "LPS" ~ paste0("C", C + 6, "H", C*2 - (2*db) + 12, "NO9P"),
-    #class == "MG"  ~ paste0("C", C + 3, "H", C*2 - (2*db) +  6, "O4"),
+    class == "FA" ~ paste0("C", C, "H", C*2 - (2*db), "O2"),
+    class == "LPA" ~ paste0("C", C + 3, "H", C*2 - (2*db) + 7, "O7P"),
+    class == "LPC" ~ paste0("C", C + 8, "H", C*2 - (2*db) + 18, "NO7P"),
+    class == "LPE" ~ paste0("C", C + 5, "H", C*2 - (2*db) + 12, "NO7P"),
     
     # 2 FA chain -----------------------------------------------------------
-    #class == "SM"       ~ paste0("C", C + 5, "H", C*2 - (2*db) + 13,"N2O6P"),
-    #class == "Cer"      ~ paste0("C", C,     "H", C*2 - (2*db) +  1, "NO3"),
-    #class == "HexCer"   ~ paste0("C", C + 6, "H", C*2 - (2*db) + 11, "NO8"),
-    #class == "LactCer"  ~ paste0("C", C +12, "H", C*2 - (2*db) + 21, "NO13"),
-    
     class == "PA"  ~ paste0("C", C + 3, "H", C*2 - (2*db) +  5, "O8P"),
-    #class == "PC"  ~ paste0("C", C + 8, "H", C*2 - (2*db) + 16, "NO8P"),
-    class == "PE"  ~ paste0("C", C + 5, "H", C*2 - (2*db) + 10, "NO8P")#,
-    #class == "PG"  ~ paste0("C", C + 6, "H", C*2 - (2*db) + 11, "O10P"),
-    #class == "PI"  ~ paste0("C", C + 9, "H", C*2 - (2*db) + 15, "O13P"),
-    #class == "PS"  ~ paste0("C", C + 6, "H", C*2 - (2*db) + 10, "NO10P"),
-    
-    #class == "MGDG" ~ paste0("C", C +  9, "H", C*2 - (2*db) + 14, "O10"),
-    #class == "DGDG" ~ paste0("C", C + 15, "H", C*2 - (2*db) + 24, "O15"),
-    
-    #class == "DG"   ~ paste0("C", C +  3, "H", C*2 - (2*db) +  4, "O5"),
+    class == "PC"  ~ paste0("C", C + 8, "H", C*2 - (2*db) + 16, "NO8P"),
+    class == "PE"  ~ paste0("C", C + 5, "H", C*2 - (2*db) + 10, "NO8P"),
+    class == "MGDG" ~ paste0("C", C +  9, "H", C*2 - (2*db) + 14, "O10"),
+    class == "DGDG" ~ paste0("C", C + 15, "H", C*2 - (2*db) + 24, "O15"),
+    class == "DG"   ~ paste0("C", C +  3, "H", C*2 - (2*db) +  4, "O5"),
     
     # 3 FA chain -----------------------------------------------------------
-    #class == "TG"   ~ paste0("C", C +  3, "H", C*2 - (2*db) +  2, "O6")
+    class == "TG"   ~ paste0("C", C +  3, "H", C*2 - (2*db) +  2, "O6")
   )
 }
 
@@ -77,22 +63,9 @@ fml_maker <- function(class, C, db){
 # Do the combinations of class + total fatty acyl chains:
 cmps <- c()
 
-#cls <- c("FA", "CAR", "LPA", "LPC", "LPE", "LPG", "LPI", "LPS", "MG")
-#fac <- 1
-#C <- seq(from = 12*fac, to = 22*fac, by = 1)
-#db <- seq(from = 0, to = 3*fac, by = 1)
-#sn <-  paste(expand.grid(C, db)[,"Var1"], expand.grid(C, db)[,"Var2"], 
-#             sep = ":")
-#for(i in cls){
-#  cmps <- c(cmps, paste(i, sn))
-#}
-
-cls <- c(#"SM", "Cer", "HexCer", "LactCer", 
-  "PA", #"PC", 
-  "PE"#, "PG", "PI", "PS", "MGDG", "DGDG", "DG"
-)
-fac <- 2
-C <- seq(from = 12*fac, to = 22*fac, by = 1)
+cls <- c("FA", "LPA", "LPC", "LPE")
+fac <- 1
+C <- seq(from = 16*fac, to = 22*fac, by = 1)
 db <- seq(from = 0, to = 3*fac, by = 1)
 sn <-  paste(expand.grid(C, db)[,"Var1"], expand.grid(C, db)[,"Var2"], 
              sep = ":")
@@ -100,15 +73,25 @@ for(i in cls){
   cmps <- c(cmps, paste(i, sn))
 }
 
-#cls <- "TG"
-#fac <- 3
-#C <- seq(from = 12*fac, to = 22*fac, by = 1)
-#db <- seq(from = 0, to = 3*fac, by = 1)
-#sn <-  paste(expand.grid(C, db)[,"Var1"], expand.grid(C, db)[,"Var2"], 
-#             sep = ":")
-#for(i in cls){
-#  cmps <- c(cmps, paste(i, sn))
-#}
+cls <- c("PA", "PC", "PE", "MGDG", "DGDG", "DG")
+fac <- 2
+C <- seq(from = 16*fac, to = 22*fac, by = 1)
+db <- seq(from = 0, to = 3*fac, by = 1)
+sn <-  paste(expand.grid(C, db)[,"Var1"], expand.grid(C, db)[,"Var2"], 
+             sep = ":")
+for(i in cls){
+  cmps <- c(cmps, paste(i, sn))
+}
+
+cls <- "TG"
+fac <- 3
+C <- seq(from = 16*fac, to = 22*fac, by = 1)
+db <- seq(from = 0, to = 3*fac, by = 1)
+sn <-  paste(expand.grid(C, db)[,"Var1"], expand.grid(C, db)[,"Var2"], 
+             sep = ":")
+for(i in cls){
+  cmps <- c(cmps, paste(i, sn))
+}
 rm(cls, fac, C, db, sn, i)
 
 # Allocate all potential molecules in a data.frame:
@@ -169,7 +152,10 @@ for(i in seq(nrow(lipids))){
   idx <- which(paste(cmps$class, cmps$C, cmps$db) ==
                  paste(lipids$class[i], lipids$C[i], lipids$db[i]))
   if(length(idx) == 1 | !(lipids$class[i] %in% cmps$class)){
-    cmps$name_std[idx] <- lipids$name_std[idx]
+    cmps$name_std[idx] <- lipids$name_std[i]
+  } else if(length(idx) > 1){
+    idx <- idx[which(cmps$name[idx] == lipids$name[i])]
+    cmps$name_std[idx] <-  lipids$name[i]
   } else{
     print("Warning! Check item i =", i)
   }
@@ -193,6 +179,9 @@ cmps <- data.frame(
 )
 
 nrow(cmps) # unique compounds
+cmps$class <- factor(cmps$class, 
+                     levels = unique(c(class_order,
+                                       levels(factor(cmps$class)))))
 table(cmps$class)
 nrow(cmps)*2 # theoretical ions (or 4?)
 
@@ -355,7 +344,7 @@ rm(bpis)
 ```
 
 
-# C-Annotate one feature of interest
+# Annotate one feature of interest
 
 ```{r ft-int}
 .ppm <- function(x, ppm = 10) {
@@ -407,8 +396,10 @@ rm(ft, tmp_ft, idx, ft_chr, tmp_cmp, tmp_pks, tmp_chr)
 load("rdata/ionsdb.RData")
 tmp_ionsdb <-ionsdb[
   ionsdb$ion_adduct %in% adds[adds$positive, "name"],]
+tmp_ionsdb$name2 <- paste0(tmp_ionsdb$class, " ", 
+                           tmp_ionsdb$C, ":", tmp_ionsdb$db)
 tmp_ionsdb[unlist(matchWithPpm(714.5012, tmp_ionsdb$ion_mz, ppm = 20)),
-           c("name", "ion_adduct", "ion_mz")]
+           c("name2", "ion_adduct", "ion_mz")]
 rm(matchWithPpm, tmp_ionsdb)
 ```
 
@@ -489,9 +480,9 @@ tmp_spsdt_NEG <- data.frame(
   i = intensity(tmp_sps_NEG)[[1]]
 )
 
-par(mfrow = c(2, 1))
-plot(tmp_spsdt_RT15_70$mz, tmp_spsdt_RT15_70$i, type = "h", bty = "l", xlim = c(500, 1000),
-     xlab = "m/z", ylab = "intensity", 
+#par(mfrow = c(2, 1))
+plot(tmp_spsdt_RT15_70$mz, tmp_spsdt_RT15_70$i, type = "h", bty = "l", 
+     xlim = c(500, 1000), xlab = "m/z", ylab = "intensity", 
      main = paste("ESI+\nFull MS @", sprintf("%.2f", rtime(tmp_sps_RT15_70)/60)))
 idx <- which(tmp_spsdt_RT15_70$i / max(tmp_spsdt_RT15_70$i) > 0.4)
 text(tmp_spsdt_RT15_70$mz[idx], tmp_spsdt_RT15_70$i[idx], 
@@ -503,7 +494,7 @@ plot(tmp_spsdt_NEG$mz, tmp_spsdt_NEG$i, type = "h", bty = "l", xlim = c(500, 100
 idx <- which(tmp_spsdt_NEG$i / max(tmp_spsdt_NEG$i) > 0.4)
 text(tmp_spsdt_NEG$mz[idx], tmp_spsdt_NEG$i[idx], 
      round(tmp_spsdt_NEG$mz[idx], 4), cex = 0.8)
-rm(fls, tmp_rdata, tmp_chr, idx, tmp_sps_NEG, tmp_spsdt_NEG, 
+rm(tmp_rdata, tmp_chr, idx, tmp_sps_NEG, tmp_spsdt_NEG, 
    tmp_sps_RT15_70, tmp_spsdt_RT15_70, bpis, rdata, xdata)
 ```
 
@@ -581,9 +572,10 @@ rm(ms2, ms2sub, mymz, myrt, i, sps, idx)
 ```
 
 
-## C1-Retention time
+## Retention time
 
-```{r, ft-rt}
+```{r ft-rt}
+#, fig.width = 10, fig.height = 6
 mycols <- colorRampPalette(GetColors(22, "discrete rainbow"))(9+1)
 names(mycols) <- c(seq(9), 0)
 
@@ -623,15 +615,13 @@ for(i in seq(nrow(cmps_tb))){
   cmps_tb$name[i] <- cmps$name_std[which(cmps$name == cmps_tb$name[i])]
 }
 
-class_id <- c(#"FA", "PE", 
-  "PA"#, "DGDG"
-)
-par(mfrow = c(2, 2))
+class_id <- c("FA")#, "PE", "PA", "DGDG")
+#par(mfrow = c(2, 2))
 for(i in seq(length(class_id))){
   tmp <- cmps_tb[cmps_tb$class == class_id[i],]
   tmp$cdb <- paste(tmp$C, tmp$db, sep = ":")
   plot(tmp$RT, tmp$C, bty = "l", col = "white", main = class_id[i],
-       xlab =  "retention time", ylab = "", yaxt = "none", axes = FALSE,
+       xlab =  "retention time", ylab = "# Carbons", yaxt = "none", axes = FALSE,
        ylim = c(min(tmp$C) - 1, max(tmp$C)))
   axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
   RT <- tmp$RT
@@ -706,8 +696,7 @@ for(i in seq(nrow(cmps_tb))){
 }
 cmps_tb_POS <- cmps_tb
 
-class_id <- c("PA"#, "PE", "PC", "MGDG"
-)
+class_id <- c("PA", "PE", "PC", "MGDG")
 xC <- c(36, 34, 31, 30)
 xdb <- c(4,3,3,3)
 par(mfrow = c(2, 2))
@@ -715,7 +704,7 @@ for(i in seq(length(class_id))){
   tmp <- cmps_tb[cmps_tb$class == class_id[i],]
   tmp$cdb <- paste(tmp$C, tmp$db, sep = ":")
   plot(tmp$RT, tmp$C, bty = "l", col = "white", main = class_id[i],
-       xlab =  "retention time", ylab = "", yaxt = "none", axes = FALSE,
+       xlab =  "retention time", ylab = "# Carbons", yaxt = "none", axes = FALSE,
        ylim = c(min(xC[i], tmp$C) - 1, max(xC[i], tmp$C)),
        xlim = c(min(c(15.60, tmp$RT)), max(c(15.70, tmp$RT))))
   axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
@@ -756,7 +745,10 @@ for(i in seq(length(class_id))){
 }
 rm(class_id, xC, xdb, i, tmp, RT, C, db, j, tmp_db, tmp2,
    tmp_ionsdb, ft, mt_ft, cmps_id, cmps, rdata, xdata, bpis)
+```
 
+
+```{r ft-rt2}
 class_id <- c("PA")
 i <- 1
 tmp <- cmps_tb[cmps_tb$class == class_id[i],]
@@ -807,9 +799,8 @@ rm(pr, cmps, rdata, xdata, bpis)
 # import data from standards:
 cmps_tb <- get(paste0("cmps_tb_", xxp))
 cmps_tb <- cmps_tb[cmps_tb$class == xxc,]
-par(mfrow = c(1, 1))
 plot(cmps_tb$RT, cmps_tb$C, bty = "l", col = "white", main = xxc,
-     xlab =  "retention time", ylab = "", yaxt = "none", axes = FALSE,
+     xlab =  "retention time", ylab = "# Carbons", yaxt = "none", axes = FALSE,
      ylim = c(min(cmps_tb$C) - 0.2, max(cmps_tb$C)))
 axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
 points(cmps_tb$RT, cmps_tb$C, pch = 8, cex = 2, col =
@@ -831,14 +822,9 @@ RT <- tmp$RT
 C <- tmp$C
 db <- tmp$db
 mdl <- lm(RT~poly(C, degree = 2) + poly(db, degree = 2))
-```
 
-
-### Check-1
-
-```{r}
 plot(tmp$RT, tmp$C, bty = "l", col = "white", main = xxc,
-     xlab =  "retention time", ylab = "", yaxt = "none", axes = FALSE,
+     xlab =  "retention time", ylab = "# Carbons", yaxt = "none", axes = FALSE,
      ylim = c(min(tmp$C) - 0.2, max(tmp$C)))
 axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
 
@@ -866,7 +852,7 @@ points(tmp$RT, tmp$C, pch = ifelse(tmp$std, 8, ifelse(tmp$MS2 == TRUE, 19, 1)),
        cex = 2, 
        col = mycols[as.character(tmp$db)]
        #col = ifelse(tmp$MS2 == TRUE | tmp$std == TRUE,
-       #            mycols[as.character(tmp$db)], "white")
+       #             mycols[as.character(tmp$db)], "white")
 )
 text(tmp$RT, tmp$C, paste(tmp$C, tmp$db, sep = ":"), pos = 1,
      col = mycols[as.character(tmp$db)]
@@ -877,7 +863,7 @@ rm(mt_ft, tmp, d, j, idx, ft, RT, C, db, t_C, t_db, tmp_dt, cmps_tb)
 ```
 
 
-## C2-Annotation
+## Annotation
 
 ```{r ft-annotation}
 load(paste0("rdata/xcms_", xxp, ".RData"))
@@ -904,13 +890,9 @@ for(i in seq(nrow(mt_ft))){
     paste(mt_ft$target_C[i], mt_ft$target_db[i]) ==
       paste(tmp_dt$C, tmp_dt$db))]
 }
-```
 
-### Check-2
-
-```{r}
 plot(mt_ft$rt_min, mt_ft$target_C, bty = "l", main = "PA",
-     xlab =  "retention time", ylab = "", 
+     xlab =  "retention time", ylab = "# Carbons", 
      col = "white", yaxt = "none", axes = FALSE,
      ylim = c(min(mt_ft$target_C) - 0.2, max(mt_ft$target_C)))
 axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
@@ -926,14 +908,17 @@ text(mt_ft$rt_min, mt_ft$target_C,
 idx <- which(abs(mt_ft$rt_min - mt_ft$rtpred) < 0.2)
 points(mt_ft$rt_min[idx], mt_ft$target_C[idx], pch = 1, cex = 5,
        col = mycols[as.character(mt_ft$target_db)][idx])
+```
 
 
+```{r ft-annotation2, fig.width = 10, fig.height = 4}
 tmp_db <- unique(mt_ft$target_db[abs(mt_ft$rt_min - mt_ft$rtpred) > 0.5])
 tmp_db <- tmp_db[order(tmp_db)]
+tmp_db <- c(0,6)
 par(mfrow = c(1, 2))
 for(i in seq(length(tmp_db))){
   plot(mt_ft$rt_min, mt_ft$target_C, bty = "l", 
-       xlab =  "retention time", ylab = "", 
+       xlab =  "retention time", ylab = "# Carbons", 
        col = "white", yaxt = "none", axes = FALSE,
        ylim = c(min(mt_ft$target_C) - 0.2, max(mt_ft$target_C)),
        main = paste("Missannotations DB =", tmp_db[i]))
@@ -941,7 +926,7 @@ for(i in seq(length(tmp_db))){
   t_db <- unique(mt_ft$target_db)
   for(j in seq(length(t_db))){
     idx <- which(tmp_dt$db == t_db[j])
-    lines(tmp_dt$RT[idx], tmp_dt$target_C[idx], 
+    lines(tmp_dt$RT[idx], tmp_dt$C[idx], 
           col = mycols[as.character(t_db[j])], lty = 2)
   }
   idx <- which((abs(mt_ft$rt_min - mt_ft$rtpred) > 0.5) & 
@@ -967,9 +952,6 @@ rm(pr, tmp_ionsdb, mt_ft, tmp, t_C, t_db, tmp_dt, tmp_db, i, j, idx, idx2,
 htmltools::tagList(datatable(cars))
 ```
 
-
-## In-house workflow
-
 ```{r inhouse, results='asis'}
 for(p in c("POS", "NEG")){
   print(p)
@@ -981,6 +963,17 @@ for(p in c("POS", "NEG")){
       ionsdb$ion_adduct %in% adds[!adds$positive, "name"],]
   }
   tmp_ionsdb <- tmp_ionsdb[!grepl("13C", tmp_ionsdb$ion_adduct),]
+  
+  # exclude internal standards:
+  tmp_ionsdb <- tmp_ionsdb[
+    !tmp_ionsdb$name %in% 
+      c(
+        "CAR 24:0 (d4)", "SM 18:1_18:1 (d9)", "Cer 15:0_18:1 (d7)", 
+        "LPA 17:0", "LPC 18:1 (d7)", "PC 15:0_18:1 (d7)", 
+        "LPE 18:1 (d7)", "PE 15:0_18:1 (d7)", "LPG 17:1", "PG 15:0_18:1 (d7)", 
+        "LPI 17:1", "LPS 17:1",
+        "MGDG 34:0", "DGDG 36:0", "DG 15:0_18:1 (d7)", "TG 15:0_15:0_18:1 (d7)"),]
+  
   print(paste("theoretical compounds, n =",
               length(unique(tmp_ionsdb$compound_id))))
   print(paste("theoretical ions, n =", nrow(tmp_ionsdb)))
@@ -1000,23 +993,63 @@ for(p in c("POS", "NEG")){
                        mzColname = c("mz", "ion_mz"))
   mt_ft <- data.frame(matchedData(mt_ft))
   mt_ft <- mt_ft[!is.na(mt_ft$target_name),]
+  mt_ft$target_class <- factor(
+    mt_ft$target_class, 
+    levels = unique(c(class_order,
+                      levels(factor(mt_ft$target_class)))))
   print(paste("mz matched, n =", nrow(mt_ft)))
-  print(table(mt_ft$target_class))
+  print(htmltools::tagList(
+    datatable(data.frame(table(mt_ft$target_class)), rownames = FALSE,
+              options = list(autoWidth = TRUE, dom = "t"))
+  ))
   
   # Filter by ionization adduct:
   if(p == "POS"){
     mt_ft <- mt_ft[
-      mt_ft$target_class == "PA" & mt_ft$target_ion_adduct == "[M+NH4]+",]
+      mt_ft$target_class == "LPA" & mt_ft$target_ion_adduct == "[M+NH4]+" |
+        mt_ft$target_class == "PA" & mt_ft$target_ion_adduct == "[M+NH4]+" |
+        mt_ft$target_class == "PC" & mt_ft$target_ion_adduct == "[M+H]+"|
+        mt_ft$target_class == "LPE" & mt_ft$target_ion_adduct == "[M+H]+" |
+        mt_ft$target_class == "PE" & mt_ft$target_ion_adduct == "[M+H]+" |
+        mt_ft$target_class == "MGDG" & mt_ft$target_ion_adduct == "[M+NH4]+" |
+        mt_ft$target_class == "DGDG" & mt_ft$target_ion_adduct == "[M+NH4]+"|
+        mt_ft$target_class == "DG" & mt_ft$target_ion_adduct == "[M+NH4]+" |
+        mt_ft$target_class == "TG" & mt_ft$target_ion_adduct == "[M+NH4]+",]
     tmp_ionsdb <- tmp_ionsdb[
-      tmp_ionsdb$class == "PA" & tmp_ionsdb$ion_adduct == "[M+NH4]+",]
-  }else if(p == "NEG"){
+      tmp_ionsdb$class == "LPA" & tmp_ionsdb$ion_adduct == "[M+NH4]+" |
+        tmp_ionsdb$class == "PA" & tmp_ionsdb$ion_adduct == "[M+NH4]+" |
+        tmp_ionsdb$class == "PC" & tmp_ionsdb$ion_adduct == "[M+H]+" |
+        tmp_ionsdb$class == "LPE" & tmp_ionsdb$ion_adduct == "[M+H]+" |
+        tmp_ionsdb$class == "PE" & tmp_ionsdb$ion_adduct == "[M+H]+" |
+        tmp_ionsdb$class == "MGDG" & tmp_ionsdb$ion_adduct == "[M+NH4]+"|
+        tmp_ionsdb$class == "DGDG" & tmp_ionsdb$ion_adduct == "[M+NH4]+" |
+        tmp_ionsdb$class == "DG" & tmp_ionsdb$ion_adduct == "[M+NH4]+" |
+        tmp_ionsdb$class == "TG" & tmp_ionsdb$ion_adduct == "[M+NH4]+",]
+  } else if(p == "NEG"){
     mt_ft <- mt_ft[
-      mt_ft$target_class == "PA" & mt_ft$target_ion_adduct == "[M-H]-",]
+      mt_ft$target_class == "FA" & mt_ft$target_ion_adduct == "[M-H]-" |
+        mt_ft$target_class == "LPA" & mt_ft$target_ion_adduct == "[M-H]-" |
+        mt_ft$target_class == "PA" & mt_ft$target_ion_adduct == "[M-H]-" |
+        mt_ft$target_class == "PC" & mt_ft$target_ion_adduct == "[M+CHO2]-" |
+        mt_ft$target_class == "LPE" & mt_ft$target_ion_adduct == "[M-H]-" |
+        mt_ft$target_class == "PE" & mt_ft$target_ion_adduct == "[M-H]-" |
+        mt_ft$target_class == "MGDG" & mt_ft$target_ion_adduct == "[M+CHO2]-"|
+        mt_ft$target_class == "DGDG" & mt_ft$target_ion_adduct == "[M+CHO2]-",]
     tmp_ionsdb <- tmp_ionsdb[
-      tmp_ionsdb$class == "PA" & tmp_ionsdb$ion_adduct == "[M-H]-",]
+      tmp_ionsdb$class == "FA" & tmp_ionsdb$ion_adduct == "[M-H]-" |
+        tmp_ionsdb$class == "LPA" & tmp_ionsdb$ion_adduct == "[M-H]-" |
+        tmp_ionsdb$class == "PA" & tmp_ionsdb$ion_adduct == "[M-H]-" |
+        tmp_ionsdb$class == "PC" & tmp_ionsdb$ion_adduct == "[M+CHO2]-" |
+        tmp_ionsdb$class == "LPE" & tmp_ionsdb$ion_adduct == "[M-H]-"|
+        tmp_ionsdb$class == "PE" & tmp_ionsdb$ion_adduct == "[M-H]-"|
+        tmp_ionsdb$class == "MGDG" & tmp_ionsdb$ion_adduct == "[M+CHO2]-"|
+        tmp_ionsdb$class == "DGDG" & tmp_ionsdb$ion_adduct == "[M+CHO2]-",]
   }
   print(paste("ion matched, n=", nrow(mt_ft)))
-  print(table(mt_ft$target_class))
+  print(htmltools::tagList(
+    datatable(data.frame(table(mt_ft$target_class)), rownames = FALSE,
+              options = list(autoWidth = TRUE, dom = "t"))
+  ))
   
   # MS2 annotation
   cmps <- readxl::read_xlsx("data/compounds.xlsx")
@@ -1029,6 +1062,10 @@ for(p in c("POS", "NEG")){
                        mzColname = c("mz", "ion_mz"),
                        rtColname = c("rt", "ion_rt"))
   mt_ft <- data.frame(matchedData(mt_ft))
+  mt_ft$target_class <- factor(
+    mt_ft$target_class, 
+    levels = unique(c(class_order,
+                      levels(factor(mt_ft$target_class)))))
   
   print(htmltools::tagList(
     datatable(mt_ft[,c("mz", "rt_min", "target_name", "target_ion_adduct", 
@@ -1040,9 +1077,18 @@ for(p in c("POS", "NEG")){
   mt_ft <- mt_ft[!is.na(mt_ft$target_name),]
   mt_ft$MS2 <- ifelse(mt_ft$target_name %in% cmps$name, TRUE, FALSE)
   print(paste("MS2, n =", sum(mt_ft$MS2 == TRUE)))
-  print(table(mt_ft$target_class[mt_ft$MS2 == TRUE]))
+  print(htmltools::tagList(
+    datatable(data.frame(
+      table(mt_ft$target_class[mt_ft$MS2 == TRUE])), rownames = FALSE,
+      options = list(autoWidth = TRUE, dom = "t"))
+  ))
   print(paste("RT extension, n =", nrow(mt_ft)))
-
+  print(htmltools::tagList(
+    datatable(data.frame(
+      table(mt_ft$target_class)), rownames = FALSE,
+      options = list(autoWidth = TRUE, dom = "t"))
+  ))
+  
   load(paste0("rdata/STDmix_xcms_", p, ".RData"))
   ft <- data.frame(featureDefinitions(xdata))
   std_ft <- matchValues(ft, tmp_ionsdb, param = pr, 
@@ -1071,20 +1117,31 @@ for(p in c("POS", "NEG")){
     RT <- tmp$rt_min
     C <- tmp$target_C
     db <- tmp$target_db
-    mdl <- lm(RT~poly(C, degree = 2) + poly(db, degree = 2))
-    t_C <- seq(min(C), max(C))
-    t_db <- seq(min(db), max(db))
-    tmp_dt <- data.frame(
-      C = rep(t_C, each = length(t_db)),
-      db = rep(t_db, length(t_C))
-    )
-    tmp_dt$RT <- predict(mdl, tmp_dt)
-    tmp_dt <- tmp_dt[order(tmp_dt$RT),]
-    for(j in seq(length(t_db))){
-      idx <- which(tmp_dt$db == t_db[j])
-      lines(tmp_dt$RT[idx], tmp_dt$C[idx], 
-            col = mycols[as.character(t_db[j])], lty = 2)
-    }
+    if(length(unique(C)) > 2 & length(unique(db)) > 2){
+      mdl <- lm(RT~poly(C, degree = 2) + poly(db, degree = 2))
+      assign(paste("mdl", p, class_id[i], sep = "_"), mdl)
+      t_C <- seq(min(C), max(C))
+      t_db <- seq(min(db), max(db))
+      tmp_dt <- data.frame(
+        C = rep(t_C, each = length(t_db)),
+        db = rep(t_db, length(t_C))
+      )
+      tmp_dt$RT <- predict(mdl, tmp_dt)
+      tmp_dt <- tmp_dt[order(tmp_dt$RT),]
+      for(j in seq(length(t_db))){
+        idx <- which(tmp_dt$db == t_db[j])
+        lines(tmp_dt$RT[idx], tmp_dt$C[idx], 
+              col = mycols[as.character(t_db[j])], lty = 2)
+      }
+    } else {
+      tmp_db <- unique(tmp$target_db)
+      for(j in seq(length(tmp_db))){
+        tmp2 <- tmp[tmp$target_db == tmp_db[j],]
+        if(length(unique(tmp2$target_C)) > 1){
+          abline(lm(tmp2$target_C~tmp2$rt_min), lty = 2, 
+                 col = paste0(mycols[as.character(tmp2$target_db[1])], "60"))
+        }}
+    } 
     tmp$cdb <- paste(tmp$target_C, tmp$target_db, sep = ":")
     d <- unique(tmp$cdb[which(duplicated(tmp$cdb))])
     if(length(d) > 0){
@@ -1100,110 +1157,12 @@ for(p in c("POS", "NEG")){
     text(tmp$rt_min, tmp$target_C, tmp$cdb, pos = 1,
          col = mycols[as.character(tmp$target_db)]
     )
-    assign(paste("mdl", p, class_id[i], sep = "_"), mdl)
   }
-  
 }
 rm(p, ft, ionsdb, adds, tmp_ionsdb, pr, mdl, mt_ft, std_ft, tmp, tmp_dt, 
    RT, C, db, t_C, t_db, d, i, j, idx, class_id, cmps)
 ```
 
-
-## MS-Dial
-
-```{r msdial}
-for(m in seq(2)){
-  for(p in c("POS", "NEG")){
-    fl <- list.files("../../../My Drive/projectes/IMN_abstract/data/",
-                     full.names = TRUE)
-    fl <- fl[grep("txt", fl)]
-    fl <- fl[grep(p, fl)]
-    md <- read.delim(fl, sep = "\t", skip = 4, header = TRUE)
-    if(m == 1){
-      md <- md[!grepl("w/o", md$Metabolite.name),]
-    }
-    md <- md[md$Metabolite.name != "Unknown" & md$Ontology != "Unknown",]
-    md <- md[!md$Ontology %in% c("AHexSIS", "AHexCAS", "SISE", "Others",
-                                 "BRSE"),]
-    md <- md[!grepl("d7", md$Metabolite.name),]
-    tmp <- gsub("\\|.*", "", md$Metabolite.name)
-    tmp <- gsub(";O.*", "", tmp)
-    tmp <- gsub(".*\\ |O-|P-|w/o MS2:|;\\(2OH)", "", tmp)
-    md$C <- unlist(lapply(strsplit(tmp, "_"),  function(x)
-      sum(as.numeric(gsub(":.*", "", x)))))
-    md$db <- unlist(lapply(strsplit(tmp, "_"),  function(x)
-      sum(as.numeric(gsub(".*:", "", x)))))
-    class_id <- unique(md$Ontology)
-    class_id <- class_id[order(class_id)]
-    for(i in seq(length(class_id))){
-      print(paste(m, p, class_id[i]))
-      tmp <- md[md$Ontology == class_id[i],]
-      plot(tmp$Average.Rt.min., tmp$C, bty = "l", 
-           xlab =  "retention time", ylab = "", 
-           col = "white", yaxt = "none", axes = FALSE,
-           ylim = c(min(tmp$C) - 0.2, max(tmp$C)),
-           main = class_id[i])
-      axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
-      if(exists(paste("mdl", p, class_id[i], sep = "_"))){
-        mdl <- get(paste("mdl", p, class_id[i], sep = "_"))
-        RT <- tmp$Average.Rt.min.
-        C <- tmp$C
-        db <- tmp$db
-        t_C <- seq(min(C), max(C))
-        t_db <- seq(min(db), max(db))
-        tmp_dt <- data.frame(
-          C = rep(t_C, each = length(t_db)),
-          db = rep(t_db, length(t_C))
-        )
-        tmp_dt$RT <- predict(mdl, tmp_dt)
-        tmp_dt <- tmp_dt[order(tmp_dt$RT),]
-        for(j in seq(length(t_db))){
-          idx <- which(tmp_dt$db == t_db[j])
-          lines(tmp_dt$RT[idx], tmp_dt$C[idx], 
-                col = mycols[as.character(t_db[j])], lty = 2)
-        }
-        tmp$rtpred <- NA
-        for(j in seq(nrow(tmp))){
-          tmp$rtpred[j] <- tmp_dt$RT[which(
-            paste(tmp$C[j], tmp$db[j]) == paste(tmp_dt$C, tmp_dt$db))]
-        }
-        idx <- which(abs(tmp$Average.Rt.min. - tmp$rtpred) < 0.2)
-        points(tmp$Average.Rt.min.[idx], tmp$C[idx], pch = 1, cex = 5,
-               col = mycols[as.character(tmp$db)][idx])
-      } else {
-        RT <- tmp$Average.Rt.min.
-        C <- tmp$C
-        db <- tmp$db
-        if(length(unique(C)) > 2 & length(unique(db)) > 2){
-          mdl <- lm(RT~poly(C, degree = 2) + poly(db, degree = 2))
-          t_C <- seq(min(C), max(C))
-          t_db <- seq(min(db), max(db))
-          tmp_dt <- data.frame(
-            C = rep(t_C, each = length(t_db)),
-            db = rep(t_db, length(t_C))
-          )
-          tmp_dt$Average.Rt.min. <- predict(mdl, tmp_dt)
-          tmp_dt <- tmp_dt[order(tmp_dt$Average.Rt.min.),]
-          for(j in seq(length(t_db))){
-            idx <- which(tmp_dt$db == t_db[j])
-            lines(tmp_dt$Average.Rt.min.[idx], tmp_dt$C[idx], 
-                  col = mycols[as.character(t_db[j])], lty = 2)
-          }
-        } else {
-          tmp_db <- unique(tmp$db)
-          for(j in seq(length(tmp_db))){
-            tmp2 <- tmp[tmp$db == tmp_db[j],]
-            if(length(unique(tmp2$C)) > 1){
-              abline(lm(tmp2$C~tmp2$Average.Rt.min.), lty = 2, 
-                     col = paste0(mycols[as.character(tmp2$db[1])], "60"))
-            }}}
-      }
-      text(tmp$Average.Rt.min., tmp$C, paste(tmp$C, tmp$db, sep = ":"), 
-           col = mycols[as.character(tmp$db)])
-    }
-  }
-}
-```
 
 # Session info
 
