@@ -1,0 +1,1213 @@
+---
+title: "Code"
+author: "Mar Garcia-Aloy"
+output: 
+  BiocStyle::html_document:
+    toc: true
+    number_sections: false
+    toc_float: true
+---
+
+```{r start, include = FALSE}
+xxp <- "NEG"
+xxc <- "PA"
+xxa <- "[M-H]-"
+
+startpoint <- Sys.time()
+```
+
+
+# Libraries
+
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(MetaboCoreUtils)
+library(CompoundDb)
+library(xcms)
+library(MsCoreUtils)
+library(Spectra)
+library(inlmisc)
+library(MetaboAnnotation)
+library(CAMERA)
+library(DT)
+```
+
+
+# CompoundDB
+
+```{r compoundDB, eval = !file.exists("rdata/ionsdb.RData")}
+# Create a function that will be used to calculate the molecular formulas of each lipid based on its class an the fatty acyl chains:
+fml_maker <- function(class, C, db){
+  case_when(
+    # 1 FA chain -----------------------------------------------------------
+    #class == "FA" ~ paste0("C", C, "H", C*2 - (2*db), "O2"),
+    #class == "CAR" ~ paste0("C", C + 7, "H", C*2 - (2*db) + 13, "NO4"),
+    #class == "LPA" ~ paste0("C", C + 3, "H", C*2 - (2*db) + 7, "O7P"),
+    #class == "LPC" ~ paste0("C", C + 8, "H", C*2 - (2*db) + 18, "NO7P"),
+    #class == "LPE" ~ paste0("C", C + 5, "H", C*2 - (2*db) + 12, "NO7P"),
+    #class == "LPG" ~ paste0("C", C + 6, "H", C*2 - (2*db) + 13, "O9P"),
+    #class == "LPI" ~ paste0("C", C + 9, "H", C*2 - (2*db) + 17, "O12P"),
+    #class == "LPS" ~ paste0("C", C + 6, "H", C*2 - (2*db) + 12, "NO9P"),
+    #class == "MG"  ~ paste0("C", C + 3, "H", C*2 - (2*db) +  6, "O4"),
+    
+    # 2 FA chain -----------------------------------------------------------
+    #class == "SM"       ~ paste0("C", C + 5, "H", C*2 - (2*db) + 13,"N2O6P"),
+    #class == "Cer"      ~ paste0("C", C,     "H", C*2 - (2*db) +  1, "NO3"),
+    #class == "HexCer"   ~ paste0("C", C + 6, "H", C*2 - (2*db) + 11, "NO8"),
+    #class == "LactCer"  ~ paste0("C", C +12, "H", C*2 - (2*db) + 21, "NO13"),
+    
+    class == "PA"  ~ paste0("C", C + 3, "H", C*2 - (2*db) +  5, "O8P"),
+    #class == "PC"  ~ paste0("C", C + 8, "H", C*2 - (2*db) + 16, "NO8P"),
+    class == "PE"  ~ paste0("C", C + 5, "H", C*2 - (2*db) + 10, "NO8P")#,
+    #class == "PG"  ~ paste0("C", C + 6, "H", C*2 - (2*db) + 11, "O10P"),
+    #class == "PI"  ~ paste0("C", C + 9, "H", C*2 - (2*db) + 15, "O13P"),
+    #class == "PS"  ~ paste0("C", C + 6, "H", C*2 - (2*db) + 10, "NO10P"),
+    
+    #class == "MGDG" ~ paste0("C", C +  9, "H", C*2 - (2*db) + 14, "O10"),
+    #class == "DGDG" ~ paste0("C", C + 15, "H", C*2 - (2*db) + 24, "O15"),
+    
+    #class == "DG"   ~ paste0("C", C +  3, "H", C*2 - (2*db) +  4, "O5"),
+    
+    # 3 FA chain -----------------------------------------------------------
+    #class == "TG"   ~ paste0("C", C +  3, "H", C*2 - (2*db) +  2, "O6")
+  )
+}
+
+
+# Do the combinations of class + total fatty acyl chains:
+cmps <- c()
+
+#cls <- c("FA", "CAR", "LPA", "LPC", "LPE", "LPG", "LPI", "LPS", "MG")
+#fac <- 1
+#C <- seq(from = 12*fac, to = 22*fac, by = 1)
+#db <- seq(from = 0, to = 3*fac, by = 1)
+#sn <-  paste(expand.grid(C, db)[,"Var1"], expand.grid(C, db)[,"Var2"], 
+#             sep = ":")
+#for(i in cls){
+#  cmps <- c(cmps, paste(i, sn))
+#}
+
+cls <- c(#"SM", "Cer", "HexCer", "LactCer", 
+  "PA", #"PC", 
+  "PE"#, "PG", "PI", "PS", "MGDG", "DGDG", "DG"
+)
+fac <- 2
+C <- seq(from = 12*fac, to = 22*fac, by = 1)
+db <- seq(from = 0, to = 3*fac, by = 1)
+sn <-  paste(expand.grid(C, db)[,"Var1"], expand.grid(C, db)[,"Var2"], 
+             sep = ":")
+for(i in cls){
+  cmps <- c(cmps, paste(i, sn))
+}
+
+#cls <- "TG"
+#fac <- 3
+#C <- seq(from = 12*fac, to = 22*fac, by = 1)
+#db <- seq(from = 0, to = 3*fac, by = 1)
+#sn <-  paste(expand.grid(C, db)[,"Var1"], expand.grid(C, db)[,"Var2"], 
+#             sep = ":")
+#for(i in cls){
+#  cmps <- c(cmps, paste(i, sn))
+#}
+rm(cls, fac, C, db, sn, i)
+
+# Allocate all potential molecules in a data.frame:
+cmps <- data.frame(
+  name = cmps,
+  class = gsub("\\ .*", "", cmps),
+  C = gsub(":.*", "", gsub(".*\\ ", "", cmps)),
+  db = gsub(".*:", "", gsub(".*\\ ", "", cmps))
+)
+cmps$C <- as.numeric(cmps$C)
+cmps$db <- as.numeric(cmps$db)
+cmps$formula <- fml_maker(cmps$class, cmps$C, cmps$db)
+cmps$mass <- calculateMass(cmps$formula)
+rm(fml_maker)
+
+
+# Add experimental information of known molecules:
+lipids <- readxl::read_xlsx("data/compounds.xlsx")
+
+### add additional items in cmps with species with >1 isomer:
+idx <- which(duplicated(paste(lipids$class, lipids$C, lipids$db)))
+tmp <- paste(lipids$class[idx], lipids$C[idx], lipids$db[idx])
+idx <- which(paste(cmps$class, cmps$C, cmps$db) %in% tmp)
+if(length(idx) != length(tmp)){
+  tmp <-tmp[which(duplicated(tmp))]
+  idx2 <- which(paste(cmps$class, cmps$C, cmps$db) %in% tmp)
+  idx <- c(idx, idx2)
+  if(length(idx2) != length(tmp)){
+    print("Warnning!!!!")
+  }
+  rm(idx2)
+}
+cmps <- rbind(cmps, cmps[idx,])
+rm(idx, tmp)
+
+### add retention time:
+cmps$rtime <- NA 
+for(i in seq(nrow(lipids))){ # 557
+  idx <- which(paste(cmps$class, cmps$C, cmps$db) == 
+                 paste(lipids$class[i], lipids$C[i], lipids$db[i]))
+  if(length(idx) > 1){
+    j <- which(paste(lipids$class, lipids$C, lipids$db) == 
+                 paste(lipids$class[i], lipids$C[i], lipids$db[i]))
+    idx <- idx[which(i == j)]
+    j <- j[which(i == j)]
+  } else {
+    j <- i
+  }
+  cmps$rtime[idx] <- lipids$RT[j]*60
+  cmps$name[idx] <- lipids$name[j]
+}
+rm(i, j, idx)
+
+### add the name of the analytical standard:
+lipids <- lipids[lipids$standard == "TRUE", ]
+cmps$name_std <- NA
+for(i in seq(nrow(lipids))){
+  idx <- which(paste(cmps$class, cmps$C, cmps$db) ==
+                 paste(lipids$class[i], lipids$C[i], lipids$db[i]))
+  if(length(idx) == 1 | !(lipids$class[i] %in% cmps$class)){
+    cmps$name_std[idx] <- lipids$name_std[idx]
+  } else{
+    print("Warning! Check item i =", i)
+  }
+}
+rm(i, idx, lipids)
+
+# Create a data.frame with required information for each compound:
+cmps <- data.frame(
+  compound_id = paste0(
+    "C", formatC(seq(nrow(cmps)), width = nchar(nrow(cmps)), flag = "0")),
+  name = cmps$name,
+  inchi = NA_character_,
+  inchikey = NA_character_,
+  formula = cmps$formula,
+  exactmass = cmps$mass,
+  rtime = cmps$rtime,
+  synonyms = cmps$name_std,
+  class = cmps$class,
+  C = cmps$C,
+  db = cmps$db
+)
+
+nrow(cmps) # unique compounds
+table(cmps$class)
+nrow(cmps)*2 # theoretical ions (or 4?)
+
+if(file.exists("rdata/CompDb_lipids.sqlite")){
+  file.remove("rdata/CompDb_lipids.sqlite")
+}
+metad <- make_metadata(source = "lipids", url = "",
+                       source_version = "0", 
+                       source_date = Sys.Date(),
+                       organism = NA_character_)
+db_file <- createCompDb(cmps, metadata = metad, 
+                        path = "rdata/", dbFile = "CompDb_lipids.sqlite")
+cdb <- CompDb(db_file, flags = RSQLite::SQLITE_RW)
+idb <- IonDb(cdb)
+adds <- rbind(
+  adducts("positive"),
+  "13C[M+H]+" = c("13C[M+H]+", 1, 1.007276 + 1.003355, 
+                  "H", "H", 1, TRUE),
+  "2(13C)[M+H]+" = c("2(13C)[M+H]+", 1, 1.007276 + 1.003355*2, 
+                     "H", "H", 1, TRUE),
+  "13C[M+NH4]+" = c("13C[M+NH4]+", 1, calculateMass("NH4") + 1.003355, 
+                    "H", "H", 1, TRUE),
+  "2(13C)[M+NH4]+"=c("2(13C)[M+NH4]+", 1, calculateMass("NH4") + 1.003355*2,
+                     "H", "H", 1, TRUE),
+  
+  adducts("negative"),
+  "13C[M-H]-" = c("13C[M-H]-", 1, -1.007276 + 1.003355, 
+                  "H", "H", -1, FALSE),
+  "2(13C)[M-H]-" = c("2(13C)[M-H]-", 1, -1.007276 + 1.003355*2, 
+                     "H", "H", -1, FALSE),
+  "13C[M+CHO2]-" = c("13C[M+CHO2]-", 1, calculateMass("CHO2") + 1.003355, 
+                     "H", "H", -1, FALSE),
+  "2(13C)[M+CHO2]-"=c("2(13C)[M+CHO2]-",1,calculateMass("CHO2") + 1.003355*2,
+                      "H", "H", -1, FALSE)
+)
+adds$mass_multi <- as.numeric(adds$mass_multi)
+adds$mass_add <- as.numeric(adds$mass_add)
+adds$charge <- as.numeric(adds$charge)
+adds$positive <- as.logical(adds$positive)
+
+for(i in seq(nrow(cmps))){
+  x <- c("[M+H]+", "[M+NH4]+", "[M-H]-", "[M+CHO2]-")#unlist(strsplit(cmps$adduct[i], " ; "))
+  x <- c(x, paste0("13C", x), paste0("2(13C)", x))
+  ion <- data.frame(
+    compound_id = rep(cmps$compound_id[i], length(x)),
+    ion_adduct = x,
+    ion_mz = rep(NA, length(x)),
+    ion_rt = rep(cmps$rtime[i], length(x))
+  )
+  for(j in seq(nrow(ion))){
+    ion$ion_mz[j] <- as.numeric(mass2mz(cmps$exactmass[i], adds[x[j],]))
+  }
+  idb <- insertIon(idb, ion)
+}
+ionsdb <- ions(idb, c(
+  "compound_id", "name", "class", "C", "db",
+  "ion_adduct", "ion_mz", "ion_rt"
+))
+save(ionsdb, adds, file = "rdata/ionsdb.RData")
+rm(metad, db_file, cdb, idb, i, x, ion, j, cmps, ionsdb, adds)
+```
+
+
+# Data processing
+
+```{r xcms}
+for(s in c("QC", "STDmix")){
+  for(p in c("POS", "NEG")){
+    if(s == "STDmix"){
+      fname <- paste0("rdata/STDmix_xcms_", p, ".RData")
+    } else if(s == "QC"){
+      fname <- paste0("rdata/xcms_", p, ".RData")
+    }
+    if(!file.exists(fname)){
+      fls <- list.files(paste0("data/", p), full.names = TRUE)
+      fls <- fls[grep(s, fls)]
+      fls <- fls[grep("mzML", fls)]
+      register(SerialParam())
+      rdata <- readMSData(fls, mode = "onDisk", msLevel. = 1)
+      if(p == "POS"){
+        pfk <- 5
+        pfi <- 1e5
+      } else if(p == "NEG"){
+        pfk <- 4
+        pfi <- 5e4
+      }
+      register(SerialParam())
+      xdata <- findChromPeaks(rdata, 
+                              param = CentWaveParam(ppm = 20,
+                                                    peakwidth = c(0.05, 1)*60,
+                                                    snthresh = 5,
+                                                    prefilter = c(pfk, pfi),
+                                                    noise = 1000,
+                                                    mzdiff = 0.001,
+                                                    integrate = 2))
+      register(SerialParam())
+      xdata <- refineChromPeaks(
+        xdata, 
+        param = FilterIntensityParam(nValues = 3, threshold = pfi)
+      )
+      
+      register(SerialParam())
+      xdata <- refineChromPeaks(xdata, 
+                                MergeNeighboringPeaksParam(expandRt = 0.25*60, 
+                                                           minProp = 0.75))
+      
+      xdata <- groupChromPeaks(
+        xdata, 
+        param = PeakDensityParam(sampleGroups = rep(1, length(fileNames(xdata))),
+                                 minFraction = 1,
+                                 binSize = 0.02,
+                                 bw = 3))
+      
+      xdata <- adjustRtime(
+        xdata, 
+        param = PeakGroupsParam(minFraction = 1, span = 0.5))
+      
+      xdata <- groupChromPeaks(
+        xdata, 
+        param = PeakDensityParam(sampleGroups = rep(1, length(fileNames(xdata))),
+                                 minFraction = 17/20,
+                                 binSize = 0.02,
+                                 bw = 3))
+      
+      register(SerialParam())
+      xdata <- fillChromPeaks(xdata, param = ChromPeakAreaParam())
+      
+      register(SerialParam())
+      bpis <- chromatogram(xdata, aggregationFun = "max", include = "none")
+      
+      register(SerialParam())
+      xset <- as(xdata, 'xcmsSet')
+      xset <- xsAnnotate(xset)
+      xset <- groupFWHM(xset, perfwhm = 0.6)
+      xset <- groupCorr(xset)
+      xset <- findIsotopes(xset)
+      if(p == "POS"){
+        xset <- findAdducts(xset, polarity = "positive")
+      } else if(p == "NEG"){
+        xset <- findAdducts(xset, polarity = "negative")
+      }
+      
+      save(rdata, xdata, bpis, xset, file = fname)
+      rm(fls, rdata, xdata, bpis, pfk, pfi, xset)
+    }
+  }
+}
+rm(s, p, fname)
+```
+
+
+# Overview of the dataset (BPC)
+
+```{r bpc}
+load("rdata/xcms_POS.RData")
+mycols <- colorRampPalette(RColorBrewer::brewer.pal(9, "YlOrRd"))(20)
+plot(bpis, bty = "l", xaxt = "none", main = "", col = paste0(mycols, "60"))
+axis(1, seq(0, 30, 0.5)*60, seq(0, 30, 0.5))
+rm(bpis)
+```
+
+
+# C-Annotate one feature of interest
+
+```{r ft-int}
+.ppm <- function(x, ppm = 10) {
+  ppm * x / 1e6
+}
+matchWithPpm <- function(x, y, ppm = 0) {
+  lapply(x, function(z, ppm) {
+    which(abs(z - y) <= (.ppm(z, ppm)) + 1e-9)
+  }, ppm = force(ppm))
+}
+
+load("rdata/xcms_POS.RData")
+rm(rdata)
+
+ft <- data.frame(featureDefinitions(xdata))
+ft$rt_min <- ft$rtmed/60
+tmp_ft <- ft[unlist(matchWithPpm(714.5034, ft$mzmed, ppm = 5)),]
+idx <- which(round(tmp_ft$rt_min, 1) == 15.7)
+register(SerialParam())
+ft_chr <- featureChromatograms(xdata, features = rownames(tmp_ft)[idx], 
+                               expandRt = 15, filled = TRUE)
+plot(ft_chr, xaxt = "n", bty = "l", col = paste0(mycols, "90"),
+     peakBg = paste0(mycols[chromPeaks(ft_chr)[, "sample"]], "10"))
+axis(1, seq(0, 30, 0.1)*60, seq(0, 30, 0.1))
+tmp_ft$mzmed[idx]
+tmp_ft$rt_min[idx]
+
+tmp_xdata_NCP <- dropChromPeaks(xdata, keepAdjustedRtime = TRUE)
+tmp_cmp <- matrix(c(714.5068 + 0.1 * c(-1, 1),
+                    c(15.6, 16)*60), nrow = 1)
+colnames(tmp_cmp) <- c("mzmin", "mzmax", "rtmin", "rtmax")
+tmp_pks <- manualChromPeaks(tmp_xdata_NCP,
+                            chromPeaks = tmp_cmp,
+                            samples = seq_along(fileNames(tmp_xdata_NCP)),
+                            BPPARAM = bpparam(),
+                            msLevel = 1L)
+tmp_chr <- chromatogram(tmp_pks, mz = 714.5068 + 0.1*c(-1, 1),
+                        rt = 15.7*60 + 30 * c(-1, 1))
+plot(tmp_chr, xaxt = "n", bty = "l", col = paste0(mycols, "90"),
+     peakBg = paste0(mycols[chromPeaks(ft_chr)[, "sample"]], "10"))
+axis(1, seq(0, 30, 0.1)*60, seq(0, 30, 0.1))
+rm(ft, tmp_ft, idx, ft_chr, tmp_cmp, tmp_pks, tmp_chr)
+```
+
+
+## m/z matchs
+
+```{r ft-mz}
+load("rdata/ionsdb.RData")
+tmp_ionsdb <-ionsdb[
+  ionsdb$ion_adduct %in% adds[adds$positive, "name"],]
+tmp_ionsdb[unlist(matchWithPpm(714.5012, tmp_ionsdb$ion_mz, ppm = 20)),
+           c("name", "ion_adduct", "ion_mz")]
+rm(matchWithPpm, tmp_ionsdb)
+```
+
+
+## Isotopic pattern
+
+```{r ft-isotopes}
+xdata15 <- filterFile(xdata, 15)
+tmp_chr <- chromatogram(xdata15, include = "none", 
+                        mz = 714.5034 + 0.05 * c(-1, 1),
+                        rt = c(15.6, 16.1)*60)
+plot(tmp_chr, xaxt = "n", bty = "l")
+axis(1, seq(0, 30, 0.1)*60, seq(0, 30, 0.1))
+abline(v = 15.70*60, lty = 2, col = 2)
+tmp_sps <- xdata15[closest(15.70*60, rtime(xdata15))]
+tmp_spsdt <- data.frame(
+  mz = mz(tmp_sps)[[1]],
+  i = intensity(tmp_sps)[[1]]
+)
+plot(tmp_spsdt$mz, tmp_spsdt$i, type = "h", bty = "l")
+idx <- which(tmp_spsdt$i / max(tmp_spsdt$i) > 0.2)
+text(tmp_spsdt$mz[idx], tmp_spsdt$i[idx], 
+     round(tmp_spsdt$mz[idx], 4), cex = 0.8)
+
+plot(tmp_spsdt$mz, tmp_spsdt$i, type = "h", bty = "l", xlim = c(710, 720),
+     xlab = "m/z", ylab = "intensity", 
+     main = paste("Full MS @", sprintf("%.2f", rtime(tmp_sps)/60)))
+idx <- which(tmp_spsdt$i / max(tmp_spsdt$i) > 0.1)
+text(tmp_spsdt$mz[idx], tmp_spsdt$i[idx], 
+     sprintf("%.4f", tmp_spsdt$mz[idx]), cex = 0.8)
+tmp_sps_RT15_70 <- tmp_sps
+tmp_spsdt_RT15_70 <- tmp_spsdt
+
+tmp_cmp <- rbind(c(714.5068 + 0.1 * c(-1, 1), c(15.6, 16)*60), 
+                 c(714.4975 + 0.1 * c(-1, 1), c(15.05, 15.3)*60))
+colnames(tmp_cmp) <- c("mzmin", "mzmax", "rtmin", "rtmax")
+tmp_pks <- manualChromPeaks(tmp_xdata_NCP,
+                            chromPeaks = tmp_cmp,
+                            samples = seq_along(fileNames(tmp_xdata_NCP)),
+                            BPPARAM = bpparam(),
+                            msLevel = 1L)
+tmp_chr <- chromatogram(tmp_pks, mz = c(714.3975, 714.6068),
+                        rt =c(15, 16.1)*60)
+plot(tmp_chr, xaxt = "n", bty = "l", col = paste0(mycols, "90"),
+     peakBg = paste0(mycols[chromPeaks(tmp_chr)[, "sample"]], "10"))
+axis(1, seq(0, 30, 0.1)*60, seq(0, 30, 0.1))
+
+tmp_sps <- xdata15[closest(15.15*60, rtime(xdata15))]
+tmp_spsdt <- data.frame(
+  mz = mz(tmp_sps)[[1]],
+  i = intensity(tmp_sps)[[1]]
+)
+plot(tmp_spsdt$mz, tmp_spsdt$i, type = "h", bty = "l", xlim = c(710, 720),
+     xlab = "m/z", ylab = "intensity", 
+     main = paste("Full MS @", sprintf("%.2f", rtime(tmp_sps)/60)))
+idx <- which(tmp_spsdt$i / max(tmp_spsdt$i) > 0.1)
+text(tmp_spsdt$mz[idx], tmp_spsdt$i[idx], 
+     sprintf("%.4f", tmp_spsdt$mz[idx]), cex = 0.8)
+rm(xdata15, tmp_chr, tmp_sps, tmp_spsdt, idx, tmp_cmp, tmp_pks,
+   tmp_xdata_NCP, xdata, mycols)
+```
+
+
+## Complementary ions
+
+```{r ft-comp}
+load("rdata/xcms_NEG.RData")
+tmp_rdata <- filterFile(rdata, 15)
+tmp_chr <- chromatogram(tmp_rdata, 
+                        mz = 695.4657 + 0.05 * c(-1, 1),
+                        rt = c(15.3, 16.1)*60)
+plot(tmp_chr, xaxt = "n", bty = "l")
+axis(1, seq(0, 30, 0.1)*60, seq(0, 30, 0.1))
+abline(v = 15.68*60, lty = 2, col = 2)
+tmp_sps_NEG <- tmp_rdata[closest(15.68*60, rtime(tmp_rdata))]
+tmp_spsdt_NEG <- data.frame(
+  mz = mz(tmp_sps_NEG)[[1]],
+  i = intensity(tmp_sps_NEG)[[1]]
+)
+
+par(mfrow = c(2, 1))
+plot(tmp_spsdt_RT15_70$mz, tmp_spsdt_RT15_70$i, type = "h", bty = "l", xlim = c(500, 1000),
+     xlab = "m/z", ylab = "intensity", 
+     main = paste("ESI+\nFull MS @", sprintf("%.2f", rtime(tmp_sps_RT15_70)/60)))
+idx <- which(tmp_spsdt_RT15_70$i / max(tmp_spsdt_RT15_70$i) > 0.4)
+text(tmp_spsdt_RT15_70$mz[idx], tmp_spsdt_RT15_70$i[idx], 
+     round(tmp_spsdt_RT15_70$mz[idx], 4), cex = 0.8)
+
+plot(tmp_spsdt_NEG$mz, tmp_spsdt_NEG$i, type = "h", bty = "l", xlim = c(500, 1000),
+     xlab = "m/z", ylab = "intensity", 
+     main = paste("ESI-\nFull MS @", sprintf("%.2f", rtime(tmp_sps_NEG)/60)))
+idx <- which(tmp_spsdt_NEG$i / max(tmp_spsdt_NEG$i) > 0.4)
+text(tmp_spsdt_NEG$mz[idx], tmp_spsdt_NEG$i[idx], 
+     round(tmp_spsdt_NEG$mz[idx], 4), cex = 0.8)
+rm(fls, tmp_rdata, tmp_chr, idx, tmp_sps_NEG, tmp_spsdt_NEG, 
+   tmp_sps_RT15_70, tmp_spsdt_RT15_70, bpis, rdata, xdata)
+```
+
+
+## Fragmentation pattern
+
+```{r, ft-msms}
+if(!file.exists("rdata/POS_MS2_spectra.RData")){
+  spectral_entropy <- function(x){
+    y <- x / sum(x)
+    z <- y*log(y)
+    return(-sum(z))
+  }
+  normalized_entropy <- function(x){
+    spectral_entropy(x) / log(length(x))
+  }
+  
+  for(p in c("POS", "NEG")){
+    fls <- list.files(paste0("data/", p), full.names = TRUE)
+    fls <- fls[grep("QC", fls)]
+    fls <- fls[grep("mzML", fls)]
+    ms2 <- Spectra(fls, backend = MsBackendDataFrame())
+    ms2 <- ms2[msLevel(ms2) > 1]
+    
+    ms2$entropy <- unlist(lapply(intensity(ms2), spectral_entropy))
+    ms2$entropy_norm <- unlist(lapply(intensity(ms2), normalized_entropy))
+    
+    save(ms2, file = paste0("rdata/", p, "_MS2_spectra.RData"))
+  }
+  rm(spectral_entropy, normalized_entropy, p, fls, ms2) 
+}
+
+load("rdata/POS_MS2_spectra.RData")
+mymz <- 714.5068
+myrt <- 15.70
+ms2sub <- filterPrecursorMzRange(ms2, mymz + 0.01 * c(-1, 1))
+ms2sub <- filterRt(ms2sub, myrt*60 + 0.1*60 * c(-1, 1))
+ms2sub <- ms2sub[order(ms2sub$entropy, ms2sub$entropy_norm)]
+i <- 1
+sps <- data.frame(
+  mz = mz(ms2sub)[[i]],
+  i = intensity(ms2sub)[[i]]
+)
+plot(sps$mz, sps$i, type = "h", bty = "l", xlab = "m/z", ylab = "intensity", 
+     xlim = c(70, precursorMz(ms2sub)[i]), ylim = c(0, max(sps$i)*1.09),
+     main = paste("ESI+\nMS2 Spectra [M+NH4]+\n", 
+                  sprintf("%.4f", precursorMz(ms2sub)[i]), "@", 
+                  sprintf("%.2f", rtime(ms2sub)[i]/60)))
+idx <- which(sps$i / max(sps$i) > 0.2)
+text(sps$mz[idx], sps$i[idx]*c(1.07,1.08),
+     c(sprintf("%.4f", sps$mz[idx]), c("\n\n[M+H-PA]+", "\n\n[M+H]+")))
+
+
+load("rdata/NEG_MS2_spectra.RData")
+mymz <- 695.4657
+myrt <- 15.68
+ms2sub <- filterPrecursorMzRange(ms2, mymz + 0.01 * c(-1, 1))
+ms2sub <- filterRt(ms2sub, myrt*60 + 0.1*60 * c(-1, 1))
+ms2sub <- ms2sub[order(ms2sub$entropy, ms2sub$entropy_norm)]
+i <- 1
+sps <- data.frame(
+  mz = mz(ms2sub)[[i]],
+  i = intensity(ms2sub)[[i]]
+)
+plot(sps$mz, sps$i, type = "h", bty = "l", xlab = "m/z", ylab = "intensity", 
+     xlim = c(70, precursorMz(ms2sub)[i]), ylim = c(0, max(sps$i)*1.09),
+     main = paste("ESI-\nMS2 Spectra [M-H]-\n", 
+                  sprintf("%.4f", precursorMz(ms2sub)[i]), "@", 
+                  sprintf("%.2f", rtime(ms2sub)[i]/60)))
+idx <- which(sps$i / max(sps$i) > 0.2)
+text(sps$mz[idx], sps$i[idx]*c(1.07,1.07,1.1),
+     c(sprintf("%.4f", sps$mz[idx]), 
+       c("\n\n[18:2-H]-", "\n\n[M-H-18:2-H2O]-", "\n\n[M-H-18:2]-")))
+rm(ms2, ms2sub, mymz, myrt, i, sps, idx)
+```
+
+
+## C1-Retention time
+
+```{r, ft-rt}
+mycols <- colorRampPalette(GetColors(22, "discrete rainbow"))(9+1)
+names(mycols) <- c(seq(9), 0)
+
+pr <- MzRtParam(ppm = 10, toleranceRt = 0.15*60)
+load("rdata/STDmix_xcms_NEG.RData")
+tmp_ionsdb <- ionsdb[
+  ionsdb$ion_adduct %in% adds[!adds$positive, "name"],]
+ft <- data.frame(featureDefinitions(xdata))
+mt_ft <- matchValues(ft, tmp_ionsdb, param = pr, 
+                     mzColname = c("mzmed", "ion_mz"),
+                     rtColname = c("rtmed", "ion_rt"))
+mt_ft <- data.frame(matchedData(mt_ft))
+
+mt_ft <- mt_ft[!is.na(mt_ft$target_name),]
+cmps_id <- unique(mt_ft$target_name)
+cmps_tb <- data.frame(
+  name = cmps_id, 
+  RT = NA,
+  ions = NA,
+  class = NA,
+  C = NA,
+  db = NA
+)
+for(i in seq(nrow(cmps_tb))){
+  tmp <- mt_ft[mt_ft$target_name == cmps_id[i],]
+  cmps_tb$RT[i] <- mean(tmp$rtmed)/60
+  cmps_tb$class[i] <- tmp$target_class[1]
+  cmps_tb$C[i] <- tmp$target_C[1]
+  cmps_tb$db[i] <- tmp$target_db[1]
+  tmp <- tmp[order(tmp$mzmed),]
+  cmps_tb$ions[i] <- paste(tmp$target_ion_adduct, collapse = ", ")
+}
+cmps <- readxl::read_xlsx("data/compounds.xlsx")
+cmps <- cmps[cmps$standard == "TRUE",]
+cmps_tb <- cmps_tb[cmps_tb$name %in% cmps$name,]
+for(i in seq(nrow(cmps_tb))){
+  cmps_tb$name[i] <- cmps$name_std[which(cmps$name == cmps_tb$name[i])]
+}
+
+class_id <- c(#"FA", "PE", 
+  "PA"#, "DGDG"
+)
+par(mfrow = c(2, 2))
+for(i in seq(length(class_id))){
+  tmp <- cmps_tb[cmps_tb$class == class_id[i],]
+  tmp$cdb <- paste(tmp$C, tmp$db, sep = ":")
+  plot(tmp$RT, tmp$C, bty = "l", col = "white", main = class_id[i],
+       xlab =  "retention time", ylab = "", yaxt = "none", axes = FALSE,
+       ylim = c(min(tmp$C) - 1, max(tmp$C)))
+  axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
+  RT <- tmp$RT
+  C <- tmp$C
+  db <- tmp$db
+  if(length(unique(C)) > 2 & length(unique(db)) > 2){
+    mdl <- lm(RT~poly(C, degree = 2) + poly(db, degree = 2))
+    t_C <- seq(min(C), max(C))
+    t_db <- seq(min(db), max(db))
+    tmp_dt <- data.frame(
+      C = rep(t_C, each = length(t_db)),
+      db = rep(t_db, length(t_C))
+    )
+    tmp_dt$RT <- predict(mdl, tmp_dt)
+    tmp_dt <- tmp_dt[order(tmp_dt$RT),]
+    for(j in seq(length(t_db))){
+      idx <- which(tmp_dt$db == t_db[j])
+      lines(tmp_dt$RT[idx], tmp_dt$C[idx], 
+            col = mycols[as.character(t_db[j])], lty = 2)
+    }
+  } else {
+    tmp_db <- unique(tmp$db)
+    for(j in seq(length(tmp_db))){
+      tmp2 <- tmp[tmp$db == tmp_db[j],]
+      if(length(unique(tmp2$C)) > 1){
+        abline(lm(tmp2$C~tmp2$RT), lty = 2, 
+               col = paste0(mycols[as.character(tmp2$db[1])], "60"))
+      }}}
+  points(tmp$RT, tmp$C, 
+         pch = 8,
+         cex = 2,#ifelse(tmp$std == TRUE, 1, 2), 
+         col = mycols[as.character(tmp$db)])
+  text(tmp$RT, tmp$C, tmp$cdb, pos = 1,
+       col = mycols[as.character(tmp$db)])
+}
+cmps_tb_NEG <- cmps_tb
+rm(class_id, i, tmp, RT, C, db, mdl, t_C, t_db, tmp_dt, j, idx, tmp_db, tmp2,
+   tmp_ionsdb, ft, mt_ft, cmps_id, cmps, rdata, xdata, bpis, cmps_tb)
+
+load("rdata/STDmix_xcms_POS.RData")
+tmp_ionsdb <- ionsdb[
+  ionsdb$ion_adduct %in% adds[adds$positive, "name"],]
+ft <- data.frame(featureDefinitions(xdata))
+mt_ft <- matchValues(ft, tmp_ionsdb, param = pr, 
+                     mzColname = c("mzmed", "ion_mz"),
+                     rtColname = c("rtmed", "ion_rt"))
+mt_ft <- data.frame(matchedData(mt_ft))
+mt_ft <- mt_ft[!is.na(mt_ft$target_name),]
+cmps_id <- unique(mt_ft$target_name)
+cmps_tb <- data.frame(
+  name = cmps_id, 
+  RT = NA,
+  ions = NA,
+  class = NA,
+  C = NA,
+  db = NA
+)
+for(i in seq(nrow(cmps_tb))){
+  tmp <- mt_ft[mt_ft$target_name == cmps_id[i],]
+  cmps_tb$RT[i] <- mean(tmp$rtmed)/60
+  cmps_tb$class[i] <- tmp$target_class[1]
+  cmps_tb$C[i] <- tmp$target_C[1]
+  cmps_tb$db[i] <- tmp$target_db[1]
+  tmp <- tmp[order(tmp$mzmed),]
+  cmps_tb$ions[i] <- paste(tmp$target_ion_adduct, collapse = ", ")
+}
+cmps <- readxl::read_xlsx("data/compounds.xlsx")
+cmps <- cmps[cmps$standard == "TRUE",]
+cmps_tb <- cmps_tb[cmps_tb$name %in% cmps$name,]
+for(i in seq(nrow(cmps_tb))){
+  cmps_tb$name[i] <- cmps$name_std[which(cmps$name == cmps_tb$name[i])]
+}
+cmps_tb_POS <- cmps_tb
+
+class_id <- c("PA"#, "PE", "PC", "MGDG"
+)
+xC <- c(36, 34, 31, 30)
+xdb <- c(4,3,3,3)
+par(mfrow = c(2, 2))
+for(i in seq(length(class_id))){
+  tmp <- cmps_tb[cmps_tb$class == class_id[i],]
+  tmp$cdb <- paste(tmp$C, tmp$db, sep = ":")
+  plot(tmp$RT, tmp$C, bty = "l", col = "white", main = class_id[i],
+       xlab =  "retention time", ylab = "", yaxt = "none", axes = FALSE,
+       ylim = c(min(xC[i], tmp$C) - 1, max(xC[i], tmp$C)),
+       xlim = c(min(c(15.60, tmp$RT)), max(c(15.70, tmp$RT))))
+  axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
+  RT <- tmp$RT
+  C <- tmp$C
+  db <- tmp$db
+  if(length(unique(C)) > 2 & length(unique(db)) > 2){
+    mdl <- lm(RT~poly(C, degree = 2) + poly(db, degree = 2))
+    t_C <- seq(min(C), max(C))
+    t_db <- seq(min(db), max(db))
+    tmp_dt <- data.frame(
+      C = rep(t_C, each = length(t_db)),
+      db = rep(t_db, length(t_C))
+    )
+    tmp_dt$RT <- predict(mdl, tmp_dt)
+    tmp_dt <- tmp_dt[order(tmp_dt$RT),]
+    for(j in seq(length(t_db))){
+      idx <- which(tmp_dt$db == t_db[j])
+      lines(tmp_dt$RT[idx], tmp_dt$C[idx], 
+            col = mycols[as.character(t_db[j])], lty = 2)
+    }
+  } else {
+    tmp_db <- unique(tmp$db)
+    for(j in seq(length(tmp_db))){
+      tmp2 <- tmp[tmp$db == tmp_db[j],]
+      if(length(unique(tmp2$C)) > 1){
+        abline(lm(tmp2$C~tmp2$RT), lty = 2, 
+               col = paste0(mycols[as.character(tmp2$db[1])], "60"))
+      }}}
+  points(tmp$RT, tmp$C, 
+         pch = 8,
+         cex = 2,#ifelse(tmp$std == TRUE, 1, 2), 
+         col = mycols[as.character(tmp$db)])
+  text(tmp$RT, tmp$C, tmp$cdb, pos = 1,
+       col = mycols[as.character(tmp$db)])
+  points(15.70, xC[i], cex = 2, col = 1, pch = 19)
+  text(15.70, xC[i], paste(xC[i], xdb[i], sep = ":"), pos = 1, cex = 2)
+}
+rm(class_id, xC, xdb, i, tmp, RT, C, db, j, tmp_db, tmp2,
+   tmp_ionsdb, ft, mt_ft, cmps_id, cmps, rdata, xdata, bpis)
+
+class_id <- c("PA")
+i <- 1
+tmp <- cmps_tb[cmps_tb$class == class_id[i],]
+tmp$cdb <- paste(tmp$C, tmp$db, sep = ":")
+plot(tmp$RT, tmp$C, bty = "l", col = "white", main = class_id[i],
+     xlab =  "retention time", ylab = "", yaxt = "none", axes = FALSE,
+     ylim = c(32 - 0.2, 42), xlim = c(14.6, 19.2))
+axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
+tmp_db <- unique(tmp$db)
+for(j in seq(length(tmp_db))){
+  tmp2 <- tmp[tmp$db == tmp_db[j],]
+  if(length(unique(tmp2$C)) > 1){
+    abline(lm(tmp2$C~tmp2$RT), lty = 2, 
+           col = paste0(mycols[as.character(tmp2$db[1])], "60"))
+  }}
+points(tmp$RT, tmp$C, 
+       pch = 8,
+       cex = 2,#ifelse(tmp$std == TRUE, 1, 2), 
+       col = mycols[as.character(tmp$db)])
+text(tmp$RT, tmp$C, tmp$cdb, pos = 1,
+     col = mycols[as.character(tmp$db)])
+rm(class_id, i, tmp, tmp_db, j, tmp2, xdata)
+
+load(paste0("rdata/xcms_", xxp, ".RData"))
+pr <- MzRtParam(ppm = 10, toleranceRt = 0.15*60)
+tmp_ionsdb <- ionsdb[ionsdb$class == xxc & 
+                       ionsdb$ion_adduct == xxa,]
+ft <- getPeaklist(xset)
+rownames(ft) <- ft$FT <- rownames(featureDefinitions(xdata))
+ft <- ft[,!grepl("mzML", colnames(ft))]
+dt <- data.frame(t(featureValues(xdata, value = "maxo")))
+ft$pheight <- colMeans(dt, na.rm = TRUE)
+ft <- ft[order(ft$pheight, decreasing = TRUE),]
+
+mt_ft <- matchValues(ft, tmp_ionsdb, param = pr, 
+                     mzColname = c("mz", "ion_mz"),
+                     rtColname = c("rt", "ion_rt"))
+mt_ft <- data.frame(matchedData(mt_ft))
+mt_ft$rt_min <- mt_ft$rt/60
+
+mt_ft <- mt_ft[!is.na(mt_ft$target_name),]
+
+cmps <- readxl::read_xlsx("data/compounds.xlsx")
+cmps <- cmps[!is.na(cmps$POS_MS2_file) | !is.na(cmps$NEG_MS2_file),]
+mt_ft$MS2 <- ifelse(mt_ft$target_name %in% cmps$name, TRUE, FALSE)
+rm(pr, cmps, rdata, xdata, bpis)
+
+# import data from standards:
+cmps_tb <- get(paste0("cmps_tb_", xxp))
+cmps_tb <- cmps_tb[cmps_tb$class == xxc,]
+par(mfrow = c(1, 1))
+plot(cmps_tb$RT, cmps_tb$C, bty = "l", col = "white", main = xxc,
+     xlab =  "retention time", ylab = "", yaxt = "none", axes = FALSE,
+     ylim = c(min(cmps_tb$C) - 0.2, max(cmps_tb$C)))
+axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
+points(cmps_tb$RT, cmps_tb$C, pch = 8, cex = 2, col =
+         mycols[as.character(cmps_tb$db)])
+text(cmps_tb$RT, cmps_tb$C, paste(cmps_tb$C, cmps_tb$db, sep = ":"), pos = 1,
+     col = mycols[as.character(cmps_tb$db)])
+
+mt_ft$std <- FALSE
+cmps_tb$std <- TRUE
+cmps_tb$MS2 <- NA
+mt_ft$name <- mt_ft$target_name
+mt_ft$RT <- mt_ft$rt/60
+mt_ft$C <- mt_ft$target_C
+mt_ft$db <- mt_ft$target_db
+tmp <- rbind(mt_ft[,c("name", "RT", "C", "db", "std", "MS2")], 
+             cmps_tb[,c("name", "RT", "C", "db", "std", "MS2")])
+
+RT <- tmp$RT
+C <- tmp$C
+db <- tmp$db
+mdl <- lm(RT~poly(C, degree = 2) + poly(db, degree = 2))
+```
+
+
+### Check-1
+
+```{r}
+plot(tmp$RT, tmp$C, bty = "l", col = "white", main = xxc,
+     xlab =  "retention time", ylab = "", yaxt = "none", axes = FALSE,
+     ylim = c(min(tmp$C) - 0.2, max(tmp$C)))
+axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
+
+t_C <- seq(min(C), max(C))
+t_db <- seq(min(db), max(db))
+tmp_dt <- data.frame(
+  C = rep(t_C, each = length(t_db)),
+  db = rep(t_db, length(t_C))
+)
+tmp_dt$RT <- predict(mdl, tmp_dt)
+tmp_dt <- tmp_dt[order(tmp_dt$RT),]
+for(j in seq(length(t_db))){
+  idx <- which(tmp_dt$db == t_db[j])
+  lines(tmp_dt$RT[idx], tmp_dt$C[idx], 
+        col = mycols[as.character(t_db[j])], lty = 2)
+}
+tmp$cdb <- paste(tmp$C, tmp$db, sep = ":")
+d <- unique(tmp$cdb[which(duplicated(tmp$cdb))])
+if(length(d) > 0){
+  for(j in seq(length(d))){
+    idx <- which(tmp$cdb == d[j])
+    tmp$RT[idx] <- mean(tmp$RT[idx])
+  }}
+points(tmp$RT, tmp$C, pch = ifelse(tmp$std, 8, ifelse(tmp$MS2 == TRUE, 19, 1)), 
+       cex = 2, 
+       col = mycols[as.character(tmp$db)]
+       #col = ifelse(tmp$MS2 == TRUE | tmp$std == TRUE,
+       #            mycols[as.character(tmp$db)], "white")
+)
+text(tmp$RT, tmp$C, paste(tmp$C, tmp$db, sep = ":"), pos = 1,
+     col = mycols[as.character(tmp$db)]
+     #col = ifelse(tmp$MS2 == TRUE | tmp$std == TRUE,
+     #            mycols[as.character(tmp$db)], "white")
+)
+rm(mt_ft, tmp, d, j, idx, ft, RT, C, db, t_C, t_db, tmp_dt, cmps_tb)
+```
+
+
+## C2-Annotation
+
+```{r ft-annotation}
+load(paste0("rdata/xcms_", xxp, ".RData"))
+ft <- getPeaklist(xset)
+ft <- ft[,!grepl("mzML", colnames(ft))]
+
+ft <- ft[ft$rt/60 > 1,]
+pr <- MzParam(ppm = 10)
+mt_ft <- matchValues(ft, 
+                     tmp_ionsdb, param = pr, mzColname = c("mz", "ion_mz"))
+mt_ft <- data.frame(matchedData(mt_ft))
+mt_ft$rt_min <- mt_ft$rt/60
+mt_ft <- mt_ft[!is.na(mt_ft$target_name),]
+t_C <- seq(min(mt_ft$target_C), max(mt_ft$target_C))
+t_db <- seq(min(mt_ft$target_db), max(mt_ft$target_db))
+tmp_dt <- data.frame(
+  C = rep(t_C, each = length(t_db)),
+  db = rep(t_db, length(t_C))
+)
+tmp_dt$RT <- predict(mdl, tmp_dt)
+mt_ft$rtpred <- NA
+for(i in seq(nrow(mt_ft))){
+  mt_ft$rtpred[i] <- tmp_dt$RT[which(
+    paste(mt_ft$target_C[i], mt_ft$target_db[i]) ==
+      paste(tmp_dt$C, tmp_dt$db))]
+}
+```
+
+### Check-2
+
+```{r}
+plot(mt_ft$rt_min, mt_ft$target_C, bty = "l", main = "PA",
+     xlab =  "retention time", ylab = "", 
+     col = "white", yaxt = "none", axes = FALSE,
+     ylim = c(min(mt_ft$target_C) - 0.2, max(mt_ft$target_C)))
+axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
+t_db <- unique(mt_ft$target_db)
+for(j in seq(length(t_db))){
+  idx <- which(tmp_dt$db == t_db[j])
+  lines(tmp_dt$RT[idx], tmp_dt$C[idx], 
+        col = mycols[as.character(t_db[j])], lty = 2)
+}
+text(mt_ft$rt_min, mt_ft$target_C, 
+     paste(mt_ft$target_C, mt_ft$target_db, sep = ":"),
+     col = mycols[as.character(mt_ft$target_db)])
+idx <- which(abs(mt_ft$rt_min - mt_ft$rtpred) < 0.2)
+points(mt_ft$rt_min[idx], mt_ft$target_C[idx], pch = 1, cex = 5,
+       col = mycols[as.character(mt_ft$target_db)][idx])
+
+
+tmp_db <- unique(mt_ft$target_db[abs(mt_ft$rt_min - mt_ft$rtpred) > 0.5])
+tmp_db <- tmp_db[order(tmp_db)]
+par(mfrow = c(1, 2))
+for(i in seq(length(tmp_db))){
+  plot(mt_ft$rt_min, mt_ft$target_C, bty = "l", 
+       xlab =  "retention time", ylab = "", 
+       col = "white", yaxt = "none", axes = FALSE,
+       ylim = c(min(mt_ft$target_C) - 0.2, max(mt_ft$target_C)),
+       main = paste("Missannotations DB =", tmp_db[i]))
+  axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
+  t_db <- unique(mt_ft$target_db)
+  for(j in seq(length(t_db))){
+    idx <- which(tmp_dt$db == t_db[j])
+    lines(tmp_dt$RT[idx], tmp_dt$target_C[idx], 
+          col = mycols[as.character(t_db[j])], lty = 2)
+  }
+  idx <- which((abs(mt_ft$rt_min - mt_ft$rtpred) > 0.5) & 
+                 mt_ft$target_db == tmp_db[i])
+  idx2 <- which(tmp_dt$db == tmp_db[i])
+  lines(tmp_dt$RT[idx2], tmp_dt$C[idx2], 
+        col = mycols[as.character(tmp_db[i])], lty = 2, lwd = 3)
+  points(mt_ft$rt_min[idx], mt_ft$target_C[idx], pch = 19, cex = 2,
+         col = mycols[as.character(mt_ft$target_db)][idx])
+  text(mt_ft$rt_min[idx], mt_ft$target_C[idx], 
+       paste(mt_ft$target_C, mt_ft$target_db, sep = ":")[idx],
+       col = mycols[as.character(mt_ft$target_db)][idx], pos = 1)
+}
+rm(pr, tmp_ionsdb, mt_ft, tmp, t_C, t_db, tmp_dt, tmp_db, i, j, idx, idx2, 
+   ft, mdl, rdata, xdata, bpis, xset, dt)
+```
+
+
+# Annotate whole dataset
+
+```{r, include=FALSE}
+# Init Step to make sure that the dependencies are loaded
+htmltools::tagList(datatable(cars))
+```
+
+
+## In-house workflow
+
+```{r inhouse, results='asis'}
+for(p in c("POS", "NEG")){
+  print(p)
+  if(p == "POS"){
+    tmp_ionsdb <- ionsdb[
+      ionsdb$ion_adduct %in% adds[adds$positive, "name"],]
+  } else if(p == "NEG"){
+    tmp_ionsdb <- ionsdb[
+      ionsdb$ion_adduct %in% adds[!adds$positive, "name"],]
+  }
+  tmp_ionsdb <- tmp_ionsdb[!grepl("13C", tmp_ionsdb$ion_adduct),]
+  print(paste("theoretical compounds, n =",
+              length(unique(tmp_ionsdb$compound_id))))
+  print(paste("theoretical ions, n =", nrow(tmp_ionsdb)))
+  
+  load(paste0("rdata/xcms_", p, ".RData"))
+  pr <- MzParam(ppm = 10)
+  ft <- getPeaklist(xset)
+  rownames(ft) <- ft$FT <- rownames(featureDefinitions(xdata))
+  ft <- ft[,!grepl("mzML", colnames(ft))]
+  dt <- data.frame(t(featureValues(xdata, value = "maxo")))
+  ft$pheight <- colMeans(dt, na.rm = TRUE)
+  ft <- ft[order(ft$pheight, decreasing = TRUE),]
+  ft$rt_min <- ft$rt/60
+  rm(rdata, xdata, bpis, xset, dt)
+  print(paste("detected features, n =", nrow(ft)))
+  mt_ft <- matchValues(ft, tmp_ionsdb, param = pr, 
+                       mzColname = c("mz", "ion_mz"))
+  mt_ft <- data.frame(matchedData(mt_ft))
+  mt_ft <- mt_ft[!is.na(mt_ft$target_name),]
+  print(paste("mz matched, n =", nrow(mt_ft)))
+  print(table(mt_ft$target_class))
+  
+  # Filter by ionization adduct:
+  if(p == "POS"){
+    mt_ft <- mt_ft[
+      mt_ft$target_class == "PA" & mt_ft$target_ion_adduct == "[M+NH4]+",]
+    tmp_ionsdb <- tmp_ionsdb[
+      tmp_ionsdb$class == "PA" & tmp_ionsdb$ion_adduct == "[M+NH4]+",]
+  }else if(p == "NEG"){
+    mt_ft <- mt_ft[
+      mt_ft$target_class == "PA" & mt_ft$target_ion_adduct == "[M-H]-",]
+    tmp_ionsdb <- tmp_ionsdb[
+      tmp_ionsdb$class == "PA" & tmp_ionsdb$ion_adduct == "[M-H]-",]
+  }
+  print(paste("ion matched, n=", nrow(mt_ft)))
+  print(table(mt_ft$target_class))
+  
+  # MS2 annotation
+  cmps <- readxl::read_xlsx("data/compounds.xlsx")
+  cmps <- cmps[!is.na(cmps$POS_MS2_file) | !is.na(cmps$NEG_MS2_file),]
+  mt_ft$MS2 <- ifelse(mt_ft$target_name %in% cmps$name, TRUE, FALSE)
+  
+  # Extension by RT:
+  pr <- MzRtParam(ppm = 10, toleranceRt = 0.15*60)
+  mt_ft <- matchValues(ft, tmp_ionsdb, param = pr, 
+                       mzColname = c("mz", "ion_mz"),
+                       rtColname = c("rt", "ion_rt"))
+  mt_ft <- data.frame(matchedData(mt_ft))
+  
+  print(htmltools::tagList(
+    datatable(mt_ft[,c("mz", "rt_min", "target_name", "target_ion_adduct", 
+                       "pcgroup", "isotopes", "adduct")]) %>%
+      formatRound(columns = c("rt_min"), digits = 2) %>%
+      formatRound(columns = c("mz"), digits = 4)
+  ))
+  
+  mt_ft <- mt_ft[!is.na(mt_ft$target_name),]
+  mt_ft$MS2 <- ifelse(mt_ft$target_name %in% cmps$name, TRUE, FALSE)
+  print(paste("MS2, n =", sum(mt_ft$MS2 == TRUE)))
+  print(table(mt_ft$target_class[mt_ft$MS2 == TRUE]))
+  print(paste("RT extension, n =", nrow(mt_ft)))
+
+  load(paste0("rdata/STDmix_xcms_", p, ".RData"))
+  ft <- data.frame(featureDefinitions(xdata))
+  std_ft <- matchValues(ft, tmp_ionsdb, param = pr, 
+                        mzColname = c("mzmed", "ion_mz"),
+                        rtColname = c("rtmed", "ion_rt"))
+  std_ft <- data.frame(matchedData(std_ft))
+  std_ft <- std_ft[!is.na(std_ft$target_name),]
+  std_ft$rt_min <- std_ft$rtmed/60
+  rm(rdata, xdata, bpis, xset, ft)
+  
+  mt_ft$std <- FALSE
+  std_ft$std <- TRUE
+  std_ft$MS2 <- FALSE
+  ft <- rbind(
+    mt_ft[,c("rt_min", "target_class", "target_C", "target_db", "target_name", "target_ion_adduct", "std", "MS2")], 
+    std_ft[,c("rt_min", "target_class", "target_C", "target_db", "target_name", "target_ion_adduct", "std", "MS2")])
+  class_id <- unique(ft$target_class)
+  for(i in seq(length(class_id))){
+    tmp <- ft[ft$target_class == class_id[i], ]
+    plot(tmp$rt_min, tmp$target_C, bty = "l", col = "white",
+         xlab =  "retention time", ylab = "", yaxt = "none", axes = FALSE,
+         ylim = c(min(tmp$target_C) - 0.2, max(tmp$target_C)),
+         main = paste(class_id[i], p))
+    axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
+    
+    RT <- tmp$rt_min
+    C <- tmp$target_C
+    db <- tmp$target_db
+    mdl <- lm(RT~poly(C, degree = 2) + poly(db, degree = 2))
+    t_C <- seq(min(C), max(C))
+    t_db <- seq(min(db), max(db))
+    tmp_dt <- data.frame(
+      C = rep(t_C, each = length(t_db)),
+      db = rep(t_db, length(t_C))
+    )
+    tmp_dt$RT <- predict(mdl, tmp_dt)
+    tmp_dt <- tmp_dt[order(tmp_dt$RT),]
+    for(j in seq(length(t_db))){
+      idx <- which(tmp_dt$db == t_db[j])
+      lines(tmp_dt$RT[idx], tmp_dt$C[idx], 
+            col = mycols[as.character(t_db[j])], lty = 2)
+    }
+    tmp$cdb <- paste(tmp$target_C, tmp$target_db, sep = ":")
+    d <- unique(tmp$cdb[which(duplicated(tmp$cdb))])
+    if(length(d) > 0){
+      for(j in seq(length(d))){
+        idx <- which(tmp$cdb == d[j])
+        tmp$rt_min[idx] <- mean(tmp$rt_min[idx])
+      }}
+    points(tmp$rt_min, tmp$target_C, 
+           pch = ifelse(tmp$std, 8, ifelse(tmp$MS2 == TRUE, 19, 1)), 
+           cex = 2, 
+           col = mycols[as.character(tmp$target_db)]
+    )
+    text(tmp$rt_min, tmp$target_C, tmp$cdb, pos = 1,
+         col = mycols[as.character(tmp$target_db)]
+    )
+    assign(paste("mdl", p, class_id[i], sep = "_"), mdl)
+  }
+  
+}
+rm(p, ft, ionsdb, adds, tmp_ionsdb, pr, mdl, mt_ft, std_ft, tmp, tmp_dt, 
+   RT, C, db, t_C, t_db, d, i, j, idx, class_id, cmps)
+```
+
+
+## MS-Dial
+
+```{r msdial}
+for(m in seq(2)){
+  for(p in c("POS", "NEG")){
+    fl <- list.files("../../../My Drive/projectes/IMN_abstract/data/",
+                     full.names = TRUE)
+    fl <- fl[grep("txt", fl)]
+    fl <- fl[grep(p, fl)]
+    md <- read.delim(fl, sep = "\t", skip = 4, header = TRUE)
+    if(m == 1){
+      md <- md[!grepl("w/o", md$Metabolite.name),]
+    }
+    md <- md[md$Metabolite.name != "Unknown" & md$Ontology != "Unknown",]
+    md <- md[!md$Ontology %in% c("AHexSIS", "AHexCAS", "SISE", "Others",
+                                 "BRSE"),]
+    md <- md[!grepl("d7", md$Metabolite.name),]
+    tmp <- gsub("\\|.*", "", md$Metabolite.name)
+    tmp <- gsub(";O.*", "", tmp)
+    tmp <- gsub(".*\\ |O-|P-|w/o MS2:|;\\(2OH)", "", tmp)
+    md$C <- unlist(lapply(strsplit(tmp, "_"),  function(x)
+      sum(as.numeric(gsub(":.*", "", x)))))
+    md$db <- unlist(lapply(strsplit(tmp, "_"),  function(x)
+      sum(as.numeric(gsub(".*:", "", x)))))
+    class_id <- unique(md$Ontology)
+    class_id <- class_id[order(class_id)]
+    for(i in seq(length(class_id))){
+      print(paste(m, p, class_id[i]))
+      tmp <- md[md$Ontology == class_id[i],]
+      plot(tmp$Average.Rt.min., tmp$C, bty = "l", 
+           xlab =  "retention time", ylab = "", 
+           col = "white", yaxt = "none", axes = FALSE,
+           ylim = c(min(tmp$C) - 0.2, max(tmp$C)),
+           main = class_id[i])
+      axis(1, seq(0, 30, 0.5), seq(0, 30, 0.5))
+      if(exists(paste("mdl", p, class_id[i], sep = "_"))){
+        mdl <- get(paste("mdl", p, class_id[i], sep = "_"))
+        RT <- tmp$Average.Rt.min.
+        C <- tmp$C
+        db <- tmp$db
+        t_C <- seq(min(C), max(C))
+        t_db <- seq(min(db), max(db))
+        tmp_dt <- data.frame(
+          C = rep(t_C, each = length(t_db)),
+          db = rep(t_db, length(t_C))
+        )
+        tmp_dt$RT <- predict(mdl, tmp_dt)
+        tmp_dt <- tmp_dt[order(tmp_dt$RT),]
+        for(j in seq(length(t_db))){
+          idx <- which(tmp_dt$db == t_db[j])
+          lines(tmp_dt$RT[idx], tmp_dt$C[idx], 
+                col = mycols[as.character(t_db[j])], lty = 2)
+        }
+        tmp$rtpred <- NA
+        for(j in seq(nrow(tmp))){
+          tmp$rtpred[j] <- tmp_dt$RT[which(
+            paste(tmp$C[j], tmp$db[j]) == paste(tmp_dt$C, tmp_dt$db))]
+        }
+        idx <- which(abs(tmp$Average.Rt.min. - tmp$rtpred) < 0.2)
+        points(tmp$Average.Rt.min.[idx], tmp$C[idx], pch = 1, cex = 5,
+               col = mycols[as.character(tmp$db)][idx])
+      } else {
+        RT <- tmp$Average.Rt.min.
+        C <- tmp$C
+        db <- tmp$db
+        if(length(unique(C)) > 2 & length(unique(db)) > 2){
+          mdl <- lm(RT~poly(C, degree = 2) + poly(db, degree = 2))
+          t_C <- seq(min(C), max(C))
+          t_db <- seq(min(db), max(db))
+          tmp_dt <- data.frame(
+            C = rep(t_C, each = length(t_db)),
+            db = rep(t_db, length(t_C))
+          )
+          tmp_dt$Average.Rt.min. <- predict(mdl, tmp_dt)
+          tmp_dt <- tmp_dt[order(tmp_dt$Average.Rt.min.),]
+          for(j in seq(length(t_db))){
+            idx <- which(tmp_dt$db == t_db[j])
+            lines(tmp_dt$Average.Rt.min.[idx], tmp_dt$C[idx], 
+                  col = mycols[as.character(t_db[j])], lty = 2)
+          }
+        } else {
+          tmp_db <- unique(tmp$db)
+          for(j in seq(length(tmp_db))){
+            tmp2 <- tmp[tmp$db == tmp_db[j],]
+            if(length(unique(tmp2$C)) > 1){
+              abline(lm(tmp2$C~tmp2$Average.Rt.min.), lty = 2, 
+                     col = paste0(mycols[as.character(tmp2$db[1])], "60"))
+            }}}
+      }
+      text(tmp$Average.Rt.min., tmp$C, paste(tmp$C, tmp$db, sep = ":"), 
+           col = mycols[as.character(tmp$db)])
+    }
+  }
+}
+```
+
+# Session info
+
+```{r session-info}
+Sys.time()-startpoint
+devtools::session_info()
+```
