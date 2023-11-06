@@ -4,7 +4,7 @@ This repository contains the code and presentation of my contribution to
 the [Italian Metabolomics Network General Meeting
 2023](http://metabonet.it/general_meeting_2023/).  
   
-Original files from data showed in the presentation is publicly available 
+Original files of data showed in the presentation are available 
 on MetaboLights ([MTBLS5261](https://www.ebi.ac.uk/metabolights/MTBLS5261)),
 whereas the source code is in the file 
 [`"code.Rmd"`](https://github.com/mar-garcia/IMN2023/blob/main/code.Rmd) of this repository.
